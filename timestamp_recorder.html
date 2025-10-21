@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timestamp Recorder</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            text-align: center;
+            font-size: 28px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 16px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        #recordBtn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        #recordBtn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        #recordBtn:active {
+            transform: translateY(0);
+        }
+
+        #clearBtn {
+            background: #ff4757;
+            color: white;
+        }
+
+        #clearBtn:hover {
+            background: #ff3838;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(255, 71, 87, 0.4);
+        }
+
+        #clearBtn:active {
+            transform: translateY(0);
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 400px;
+            padding: 16px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            resize: vertical;
+            background: #f8f9fa;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .info {
+            margin-top: 16px;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 24px;
+            }
+
+            h1 {
+                font-size: 24px;
+                margin-bottom: 20px;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            button {
+                padding: 14px 20px;
+                font-size: 14px;
+            }
+
+            textarea {
+                min-height: 300px;
+                font-size: 13px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⏱ Timestamp Recorder</h1>
+        
+        <div class="button-group">
+            <button id="recordBtn">Record Timestamp</button>
+            <button id="clearBtn">Clear All</button>
+        </div>
+
+        <textarea id="timestampDisplay" readonly placeholder="No timestamps recorded yet. Click 'Record Timestamp' to start..."></textarea>
+
+        <div class="info">
+            Data is automatically saved to your browser's local storage
+        </div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'timestamps';
+        const recordBtn = document.getElementById('recordBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const display = document.getElementById('timestampDisplay');
+
+        // Format timestamp as "YYYY-MM-DD HH:MM:SS"
+        function formatTimestamp(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            
+            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        }
+
+        // Load timestamps from localStorage
+        function loadTimestamps() {
+            try {
+                const stored = localStorage.getItem(STORAGE_KEY);
+                if (stored) {
+                    display.value = stored;
+                }
+            } catch (e) {
+                console.error('Error loading timestamps:', e);
+            }
+        }
+
+        // Save timestamps to localStorage
+        function saveTimestamps(text) {
+            try {
+                localStorage.setItem(STORAGE_KEY, text);
+            } catch (e) {
+                console.error('Error saving timestamps:', e);
+                alert('Failed to save to local storage. Storage might be full.');
+            }
+        }
+
+        // Record new timestamp
+        function recordTimestamp() {
+            const timestamp = formatTimestamp(new Date());
+            const currentText = display.value;
+            const newText = currentText ? currentText + '\n' + timestamp : timestamp;
+            
+            display.value = newText;
+            saveTimestamps(newText);
+            
+            // Scroll to bottom to show latest timestamp
+            display.scrollTop = display.scrollHeight;
+        }
+
+        // Clear all timestamps
+        function clearTimestamps() {
+            if (display.value && !confirm('Are you sure you want to clear all timestamps?')) {
+                return;
+            }
+            
+            display.value = '';
+            saveTimestamps('');
+        }
+
+        // Event listeners
+        recordBtn.addEventListener('click', recordTimestamp);
+        clearBtn.addEventListener('click', clearTimestamps);
+
+        // Also allow Enter key to record (when buttons have focus)
+        recordBtn.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') recordTimestamp();
+        });
+
+        // Load existing timestamps on page load
+        loadTimestamps();
+    </script>
+</body>
+</html>
+
