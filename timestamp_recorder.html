@@ -37,6 +37,33 @@
             font-size: 28px;
         }
 
+        .tag-input-group {
+            margin-bottom: 20px;
+        }
+
+        .tag-input-group label {
+            display: block;
+            color: #555;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        #tagInput {
+            width: 100%;
+            padding: 12px 16px;
+            font-size: 15px;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            transition: border-color 0.3s ease;
+        }
+
+        #tagInput:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
         .button-group {
             display: flex;
             gap: 12px;
@@ -54,6 +81,16 @@
             transition: all 0.3s ease;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        button:disabled:hover {
+            transform: none;
+            box-shadow: none;
         }
 
         #recordBtn {
@@ -82,6 +119,22 @@
         }
 
         #clearBtn:active {
+            transform: translateY(0);
+        }
+
+        #undoBtn, #redoBtn {
+            background: #57606f;
+            color: white;
+            flex: 0.7;
+        }
+
+        #undoBtn:hover:not(:disabled), #redoBtn:hover:not(:disabled) {
+            background: #2f3542;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(87, 96, 111, 0.4);
+        }
+
+        #undoBtn:active:not(:disabled), #redoBtn:active:not(:disabled) {
             transform: translateY(0);
         }
 
@@ -141,8 +194,15 @@
     <div class="container">
         <h1>⏱ Timestamp Recorder</h1>
         
+        <div class="tag-input-group">
+            <label for="tagInput">Tag (optional):</label>
+            <input type="text" id="tagInput" placeholder="Enter a tag for your timestamps...">
+        </div>
+
         <div class="button-group">
             <button id="recordBtn">Record Timestamp</button>
+            <button id="undoBtn" disabled>Undo</button>
+            <button id="redoBtn" disabled>Redo</button>
             <button id="clearBtn">Clear All</button>
         </div>
 
@@ -155,9 +215,17 @@
 
     <script>
         const STORAGE_KEY = 'timestamps';
+        const TAG_STORAGE_KEY = 'timestamp_tag';
         const recordBtn = document.getElementById('recordBtn');
         const clearBtn = document.getElementById('clearBtn');
+        const undoBtn = document.getElementById('undoBtn');
+        const redoBtn = document.getElementById('redoBtn');
         const display = document.getElementById('timestampDisplay');
+        const tagInput = document.getElementById('tagInput');
+
+        // Undo/Redo history management
+        let history = [];
+        let historyIndex = -1;
 
         // Format timestamp as "YYYY-MM-DD HH:MM:SS"
         function formatTimestamp(date) {
@@ -171,13 +239,41 @@
             return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
         }
 
+        // Update undo/redo button states
+        function updateUndoRedoButtons() {
+            undoBtn.disabled = historyIndex <= 0;
+            redoBtn.disabled = historyIndex >= history.length - 1;
+        }
+
+        // Save state to history (for undo/redo)
+        function saveToHistory(text) {
+            // Remove any future states if we're not at the end
+            if (historyIndex < history.length - 1) {
+                history = history.slice(0, historyIndex + 1);
+            }
+            
+            history.push(text);
+            historyIndex = history.length - 1;
+            updateUndoRedoButtons();
+        }
+
         // Load timestamps from localStorage
         function loadTimestamps() {
             try {
                 const stored = localStorage.getItem(STORAGE_KEY);
-                if (stored) {
-                    display.value = stored;
+                const storedTag = localStorage.getItem(TAG_STORAGE_KEY);
+                
+                // Initialize history with current state (empty or loaded)
+                const currentState = stored || '';
+                display.value = currentState;
+                history = [currentState];
+                historyIndex = 0;
+                
+                if (storedTag) {
+                    tagInput.value = storedTag;
                 }
+                
+                updateUndoRedoButtons();
             } catch (e) {
                 console.error('Error loading timestamps:', e);
             }
@@ -193,17 +289,55 @@
             }
         }
 
+        // Save tag to localStorage
+        function saveTag() {
+            try {
+                localStorage.setItem(TAG_STORAGE_KEY, tagInput.value);
+            } catch (e) {
+                console.error('Error saving tag:', e);
+            }
+        }
+
         // Record new timestamp
         function recordTimestamp() {
             const timestamp = formatTimestamp(new Date());
+            const tag = tagInput.value.trim();
+            
+            // Format: [Tag] timestamp or just timestamp if no tag
+            const entry = tag ? `[${tag}] ${timestamp}` : timestamp;
+            
             const currentText = display.value;
-            const newText = currentText ? currentText + '\n' + timestamp : timestamp;
+            const newText = currentText ? currentText + '\n' + entry : entry;
             
             display.value = newText;
             saveTimestamps(newText);
+            saveToHistory(newText);
+            saveTag();
             
             // Scroll to bottom to show latest timestamp
             display.scrollTop = display.scrollHeight;
+        }
+
+        // Undo
+        function undo() {
+            if (historyIndex > 0) {
+                historyIndex--;
+                display.value = history[historyIndex];
+                saveTimestamps(history[historyIndex]);
+                updateUndoRedoButtons();
+                display.scrollTop = display.scrollHeight;
+            }
+        }
+
+        // Redo
+        function redo() {
+            if (historyIndex < history.length - 1) {
+                historyIndex++;
+                display.value = history[historyIndex];
+                saveTimestamps(history[historyIndex]);
+                updateUndoRedoButtons();
+                display.scrollTop = display.scrollHeight;
+            }
         }
 
         // Clear all timestamps
@@ -214,15 +348,38 @@
             
             display.value = '';
             saveTimestamps('');
+            saveToHistory('');
         }
 
         // Event listeners
         recordBtn.addEventListener('click', recordTimestamp);
         clearBtn.addEventListener('click', clearTimestamps);
+        undoBtn.addEventListener('click', undo);
+        redoBtn.addEventListener('click', redo);
 
-        // Also allow Enter key to record (when buttons have focus)
-        recordBtn.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') recordTimestamp();
+        // Save tag when it changes
+        tagInput.addEventListener('input', saveTag);
+
+        // Allow Enter key in tag input to record timestamp
+        tagInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                recordTimestamp();
+            }
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            // Ctrl/Cmd + Z for undo
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                undo();
+            }
+            // Ctrl/Cmd + Shift + Z or Ctrl/Cmd + Y for redo
+            else if ((e.ctrlKey || e.metaKey) && (e.shiftKey && e.key === 'z' || e.key === 'y')) {
+                e.preventDefault();
+                redo();
+            }
         });
 
         // Load existing timestamps on page load
